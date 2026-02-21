@@ -158,6 +158,13 @@ class TEIBackend(EmbeddingBackend):
         model: str,
         dimensions: int | None = None,
     ) -> EmbeddingResponse:
+        # current_model이 None이면 먼저 감지 시도
+        if self.current_model is None:
+            detected = await self._detect_current_model()
+            if detected:
+                self.current_model = detected
+                logger.info(f"TEI model detected (late): {detected}")
+
         # 모델이 다르면 교체
         if model != self.current_model:
             if model not in self.available_models:

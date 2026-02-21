@@ -87,3 +87,10 @@ async def test_embeddings_batch_input(client):
         assert response.status_code == 200
         data = response.json()
         assert len(data["data"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_playground_page(client):
+    response = await client.get("/playground")
+    assert response.status_code == 200
+    assert "Embedding Gateway Playground" in response.text

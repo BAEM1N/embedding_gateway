@@ -1,7 +1,10 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from embedding_gateway.backends.ollama import OllamaBackend
 from embedding_gateway.backends.tei import TEIBackend
@@ -40,9 +43,34 @@ async def lifespan(app: FastAPI):
     await tei.initialize()
     reg.register_backend("tei", tei)
 
-    # Pre-register known model mappings
-    for m in ["bge-m3", "snowflake-arctic-embed2", "qwen3-embedding:0.6b"]:
+    # Pre-register known Ollama embedding models
+    ollama_models = [
+        # Qwen3 Embedding (GGUF 양자화)
+        "qwen3-embedding:0.6b",
+        "qwen3-embedding:4b",
+        "qwen3-embedding:8b",
+        # BAAI
+        "bge-m3",
+        "bge-large",
+        # Nomic
+        "nomic-embed-text",
+        "nomic-embed-text-v2-moe",
+        # Google / Mixedbread
+        "embeddinggemma",
+        "mxbai-embed-large",
+        # Snowflake
+        "snowflake-arctic-embed2",
+        "snowflake-arctic-embed:335m",
+        # Sentence Transformers
+        "all-minilm:33m",
+        "paraphrase-multilingual",
+        # IBM Granite
+        "granite-embedding:278m",
+    ]
+    for m in ollama_models:
         reg.register_model(m, ollama)
+
+    # TEI models (safetensors fp16, dynamic swap)
     for m in tei_models:
         reg.register_model(m, tei)
 
@@ -69,6 +97,15 @@ app = FastAPI(
 
 app.include_router(router)
 app.include_router(health_router)
+
+# Static files & playground
+_static_dir = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+
+
+@app.get("/playground")
+async def playground():
+    return FileResponse(str(_static_dir / "playground.html"))
 
 
 def main():

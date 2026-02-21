@@ -1,7 +1,11 @@
+from pathlib import Path
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from embedding_gateway.backends.ollama import OllamaBackend
 from embedding_gateway.backends.tei import TEIBackend
 from embedding_gateway.registry import ModelRegistry
@@ -44,7 +48,9 @@ async def client():
     tei.current_model = "intfloat/multilingual-e5-large-instruct"
     reg.register_backend("tei", tei)
 
-    for m in ["bge-m3", "snowflake-arctic-embed2"]:
+    for m in ["bge-m3", "bge-large", "snowflake-arctic-embed2",
+              "qwen3-embedding:0.6b", "qwen3-embedding:4b", "qwen3-embedding:8b",
+              "nomic-embed-text", "embeddinggemma", "mxbai-embed-large"]:
         reg.register_model(m, ollama)
     for m in TEI_MODELS:
         reg.register_model(m, tei)
@@ -55,6 +61,14 @@ async def client():
     app = FastAPI()
     app.include_router(router)
     app.include_router(health_router)
+
+    # Playground
+    static_dir = Path(__file__).parent.parent / "src" / "embedding_gateway" / "static"
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+    @app.get("/playground")
+    async def playground():
+        return FileResponse(str(static_dir / "playground.html"))
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

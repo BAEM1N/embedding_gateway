@@ -32,7 +32,8 @@ async def create_embeddings(request: EmbeddingRequest) -> EmbeddingResponse:
     try:
         return await backend.embed(texts, request.model, request.dimensions)
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Backend error: {e}")
+        msg = str(e) or f"{type(e).__name__} (no message)"
+        raise HTTPException(status_code=502, detail=f"Backend error: {msg}")
 
 
 @router.get("/v1/models", response_model=ModelListResponse)

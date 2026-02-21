@@ -20,7 +20,7 @@ class Settings(BaseSettings):
         "ghcr.io/huggingface/text-embeddings-inference:89-1.9"
     )
     tei_container_name: str = "tei-embeddings"
-    tei_swap_timeout: float = 120.0
+    tei_swap_timeout: float = 600.0
     tei_wsl_distro: str = "Ubuntu-24.04"
 
     # HuggingFace token (gated 모델 접근용)

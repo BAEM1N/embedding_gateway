@@ -86,6 +86,33 @@
 
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 16px;
+  }
+
+  .tab {
+    padding: 8px 20px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--text-dim);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: var(--font);
+  }
+
+  .tab:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+  .tab:last-child { border-radius: 0 var(--radius) var(--radius) 0; border-left: none; }
+  .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
   /* Form */
   .card {
     background: var(--surface);
@@ -197,6 +224,48 @@
 
   .checkbox-label input { accent-color: var(--accent); }
 
+  /* Model Checklist (Compare) */
+  .model-checklist {
+    max-height: 240px;
+    overflow-y: auto;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 0;
+  }
+
+  .model-checklist::-webkit-scrollbar { width: 6px; }
+  .model-checklist::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .model-group-label {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    padding: 6px 14px 2px;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+
+  .model-check-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 14px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+
+  .model-check-item:hover { background: rgba(108, 138, 255, 0.08); }
+  .model-check-item input { accent-color: var(--accent); flex-shrink: 0; }
+  .model-check-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .select-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+  }
+
   /* Results */
   .result-header {
     display: flex;
@@ -221,6 +290,7 @@
     gap: 20px;
     margin-bottom: 16px;
     font-size: 0.82rem;
+    flex-wrap: wrap;
   }
 
   .stat { color: var(--text-dim); }
@@ -292,11 +362,99 @@
     background: var(--surface2);
     color: var(--text-dim);
     font-weight: 500;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .sim-high { color: var(--green); }
   .sim-mid { color: var(--yellow); }
   .sim-low { color: var(--red); }
+
+  /* Compare Results */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .compare-card {
+    background: var(--surface2);
+    border-radius: var(--radius);
+    padding: 16px;
+    border: 1px solid var(--border);
+  }
+
+  .compare-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .compare-model-name {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--accent);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .compare-latency {
+    font-size: 0.76rem;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    flex-shrink: 0;
+    margin-left: 8px;
+  }
+
+  .compare-stats {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+
+  .compare-stats span { margin-right: 12px; }
+  .compare-stats strong { color: var(--text); font-family: var(--mono); }
+
+  .compare-vector {
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    color: var(--text);
+    word-break: break-all;
+    line-height: 1.5;
+    background: var(--surface);
+    padding: 8px 10px;
+    border-radius: 4px;
+  }
+
+  .compare-error {
+    color: var(--red);
+    font-size: 0.82rem;
+    padding: 8px;
+  }
+
+  /* Progress */
+  .progress-bar {
+    width: 100%;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s;
+    border-radius: 2px;
+  }
 
   /* Download actions */
   .download-actions {
@@ -344,6 +502,7 @@
     .form-row { flex-direction: column; }
     .form-group.small { flex: 1; }
     .health-badges { flex-wrap: wrap; }
+    .compare-grid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -356,42 +515,94 @@
     </div>
   </header>
 
-  <!-- Input Form -->
-  <div class="card">
-    <div class="form-row">
-      <div class="form-group">
-        <label for="model">Model</label>
-        <select id="model">
-          <option value="">Loading models...</option>
-        </select>
-      </div>
-      <div class="form-group small">
-        <label for="dimensions">Dimensions</label>
-        <input type="number" id="dimensions" placeholder="auto" min="1">
-      </div>
-    </div>
-
-    <div class="form-group" style="margin-bottom: 14px;">
-      <label for="inputText">Input Text</label>
-      <textarea id="inputText" placeholder="텍스트를 입력하세요.&#10;Batch 모드: 줄 단위로 분리하여 각각 임베딩합니다."></textarea>
-    </div>
-
-    <div class="actions">
-      <button class="btn-primary" id="embedBtn" onclick="runEmbed()">Embed</button>
-      <label class="checkbox-label">
-        <input type="checkbox" id="batchMode"> Batch mode (줄 단위 분리)
-      </label>
-    </div>
+  <!-- Mode Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('embed')">Embed</button>
+    <button class="tab" onclick="switchTab('compare')">Compare</button>
   </div>
 
-  <!-- Results -->
-  <div id="results"></div>
+  <!-- ═══ Embed Panel (single model) ═══ -->
+  <div class="tab-panel active" id="panel-embed">
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="model">Model</label>
+          <select id="model">
+            <option value="">Loading models...</option>
+          </select>
+        </div>
+        <div class="form-group small">
+          <label for="dimensions">Dimensions</label>
+          <input type="number" id="dimensions" placeholder="auto" min="1">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label for="inputText">Input Text</label>
+        <textarea id="inputText" placeholder="텍스트를 입력하세요.&#10;Batch 모드: 줄 단위로 분리하여 각각 임베딩합니다."></textarea>
+      </div>
+
+      <div class="actions">
+        <button class="btn-primary" id="embedBtn" onclick="runEmbed()">Embed</button>
+        <label class="checkbox-label">
+          <input type="checkbox" id="batchMode"> Batch mode (줄 단위 분리)
+        </label>
+      </div>
+    </div>
+
+    <div id="results"></div>
+  </div>
+
+  <!-- ═══ Compare Panel (multi-model) ═══ -->
+  <div class="tab-panel" id="panel-compare">
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Models <span style="color:var(--text-dim);font-weight:400">(2개 이상 선택)</span></label>
+          <div class="model-checklist" id="modelChecklist">
+            <div style="padding:12px;color:var(--text-dim)">Loading models...</div>
+          </div>
+          <div class="select-actions">
+            <button class="btn-sm" onclick="checkAll(true)">All</button>
+            <button class="btn-sm" onclick="checkAll(false)">None</button>
+            <button class="btn-sm" onclick="checkByBackend('ollama')">Ollama only</button>
+            <button class="btn-sm" onclick="checkByBackend('tei')">TEI only</button>
+          </div>
+        </div>
+        <div class="form-group small">
+          <label for="cmpDimensions">Dimensions</label>
+          <input type="number" id="cmpDimensions" placeholder="auto" min="1">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 14px;">
+        <label for="cmpInputText">Input Text</label>
+        <textarea id="cmpInputText" placeholder="비교할 텍스트를 입력하세요.&#10;같은 텍스트를 여러 모델로 임베딩하여 결과를 비교합니다."></textarea>
+      </div>
+
+      <div class="actions">
+        <button class="btn-primary" id="compareBtn" onclick="runCompare()">Compare</button>
+        <span id="compareStatus" style="font-size:0.82rem;color:var(--text-dim)"></span>
+      </div>
+    </div>
+
+    <div id="compareResults"></div>
+  </div>
 </div>
 
 <script>
 const API_BASE = '';  // same origin
 
-// --- Health ---
+// ─── Tab Switching ───
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', (tab === 'embed' && i === 0) || (tab === 'compare' && i === 1));
+  });
+  document.getElementById('panel-embed').classList.toggle('active', tab === 'embed');
+  document.getElementById('panel-compare').classList.toggle('active', tab === 'compare');
+}
+
+// ─── Health ───
 async function checkHealth() {
   const el = document.getElementById('healthBadges');
   try {
@@ -413,7 +624,9 @@ async function checkHealth() {
   }
 }
 
-// --- Models ---
+// ─── Models ───
+let modelGroups = {};
+
 async function loadModels() {
   const sel = document.getElementById('model');
   try {
@@ -421,15 +634,16 @@ async function loadModels() {
     const d = await r.json();
 
     // Group by backend
-    const groups = {};
+    modelGroups = {};
     for (const m of d.data) {
       const b = m.backend || m.owned_by || 'unknown';
-      if (!groups[b]) groups[b] = [];
-      groups[b].push(m.id);
+      if (!modelGroups[b]) modelGroups[b] = [];
+      modelGroups[b].push(m.id);
     }
 
+    // Populate single-model dropdown
     sel.innerHTML = '';
-    for (const [backend, models] of Object.entries(groups).sort()) {
+    for (const [backend, models] of Object.entries(modelGroups).sort()) {
       const og = document.createElement('optgroup');
       og.label = backend.toUpperCase();
       for (const mid of models.sort()) {
@@ -440,12 +654,44 @@ async function loadModels() {
       }
       sel.appendChild(og);
     }
+
+    // Populate compare checklist
+    buildChecklist(modelGroups);
   } catch {
     sel.innerHTML = '<option value="">Failed to load models</option>';
   }
 }
 
-// --- Embed ---
+function buildChecklist(groups) {
+  const cl = document.getElementById('modelChecklist');
+  let html = '';
+  for (const [backend, models] of Object.entries(groups).sort()) {
+    html += `<div class="model-group-label">${backend}</div>`;
+    for (const mid of models.sort()) {
+      html += `<label class="model-check-item" data-backend="${backend}">
+        <input type="checkbox" value="${mid}">
+        <span title="${mid}">${mid}</span>
+      </label>`;
+    }
+  }
+  cl.innerHTML = html;
+}
+
+function checkAll(checked) {
+  document.querySelectorAll('#modelChecklist input[type="checkbox"]').forEach(c => c.checked = checked);
+}
+
+function checkByBackend(backend) {
+  document.querySelectorAll('#modelChecklist input[type="checkbox"]').forEach(c => {
+    c.checked = c.closest('.model-check-item').dataset.backend === backend;
+  });
+}
+
+function getSelectedModels() {
+  return [...document.querySelectorAll('#modelChecklist input:checked')].map(c => c.value);
+}
+
+// ─── Single Embed ───
 async function runEmbed() {
   const model = document.getElementById('model').value;
   const text = document.getElementById('inputText').value.trim();
@@ -454,8 +700,8 @@ async function runEmbed() {
   const btn = document.getElementById('embedBtn');
   const resultsEl = document.getElementById('results');
 
-  if (!model) return alert('Select a model');
-  if (!text) return alert('Enter text');
+  if (!model) return alert('모델을 선택하세요.');
+  if (!text) return alert('텍스트를 입력하세요.');
 
   const input = batch ? text.split('\n').filter(l => l.trim()) : text;
 
@@ -483,16 +729,82 @@ async function runEmbed() {
 
     const data = await r.json();
     renderResults(data, input, latency);
-    checkHealth(); // refresh health after request
+    checkHealth();
   } catch (e) {
-    resultsEl.innerHTML = `<div class="error">${e.message}</div>`;
+    resultsEl.innerHTML = `<div class="error">${escHtml(e.message)}</div>`;
   } finally {
     btn.disabled = false;
     btn.textContent = 'Embed';
   }
 }
 
-// --- Render ---
+// ─── Multi-Model Compare ───
+async function runCompare() {
+  const models = getSelectedModels();
+  const text = document.getElementById('cmpInputText').value.trim();
+  const dims = document.getElementById('cmpDimensions').value;
+  const btn = document.getElementById('compareBtn');
+  const statusEl = document.getElementById('compareStatus');
+  const resultsEl = document.getElementById('compareResults');
+
+  if (models.length < 2) return alert('2개 이상의 모델을 선택하세요.');
+  if (!text) return alert('텍스트를 입력하세요.');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Comparing...';
+  resultsEl.innerHTML = `<div class="card">
+    <div class="progress-bar"><div class="progress-fill" id="cmpProgress" style="width:0%"></div></div>
+    <div id="cmpLive" class="empty">요청 중... 0 / ${models.length}</div>
+  </div>`;
+
+  const results = [];
+  let done = 0;
+
+  // Sequential requests (TEI needs sequential model swapping)
+  for (const model of models) {
+    const body = { model, input: text };
+    if (dims) body.dimensions = parseInt(dims);
+
+    // Update live status
+    const liveEl = document.getElementById('cmpLive');
+    if (liveEl) liveEl.textContent = `요청 중... ${done} / ${models.length} — ${model}`;
+
+    const t0 = performance.now();
+    try {
+      const r = await fetch(`${API_BASE}/v1/embeddings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const latency = Math.round(performance.now() - t0);
+
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ detail: r.statusText }));
+        results.push({ model, error: err.detail || `HTTP ${r.status}`, latency });
+      } else {
+        const data = await r.json();
+        results.push({ model, data, latency });
+      }
+    } catch (e) {
+      results.push({ model, error: e.message, latency: Math.round(performance.now() - t0) });
+    }
+
+    done++;
+    const pct = Math.round((done / models.length) * 100);
+    const progEl = document.getElementById('cmpProgress');
+    if (progEl) progEl.style.width = pct + '%';
+    if (liveEl) liveEl.textContent = `요청 중... ${done} / ${models.length}`;
+  }
+
+  renderCompareResults(results, text);
+  checkHealth();
+
+  btn.disabled = false;
+  btn.textContent = 'Compare';
+  statusEl.textContent = '';
+}
+
+// ─── Render Single Results ───
 function renderResults(data, input, latency) {
   const el = document.getElementById('results');
   const embs = data.data;
@@ -527,7 +839,7 @@ function renderResults(data, input, latency) {
     </div>`;
   }
 
-  // Cosine similarity matrix (if 2+ vectors)
+  // Cosine similarity matrix (if 2+ vectors in batch)
   if (embs.length >= 2) {
     html += `<div class="similarity-section">
       <label style="margin-bottom:8px;display:block;">Cosine Similarity</label>`;
@@ -536,22 +848,10 @@ function renderResults(data, input, latency) {
       const sim = cosine(embs[0].embedding, embs[1].embedding);
       html += `<div style="font-family:var(--mono);font-size:1.1rem;" class="${simClass(sim)}">${sim.toFixed(4)}</div>`;
     } else {
-      html += '<table class="similarity-matrix"><tr><th></th>';
-      for (let i = 0; i < embs.length; i++) html += `<th>[${i}]</th>`;
-      html += '</tr>';
-      for (let i = 0; i < embs.length; i++) {
-        html += `<tr><th>[${i}]</th>`;
-        for (let j = 0; j < embs.length; j++) {
-          if (i === j) {
-            html += '<td>1.0000</td>';
-          } else {
-            const sim = cosine(embs[i].embedding, embs[j].embedding);
-            html += `<td class="${simClass(sim)}">${sim.toFixed(4)}</td>`;
-          }
-        }
-        html += '</tr>';
-      }
-      html += '</table>';
+      html += renderSimMatrix(
+        embs.map((e, i) => `[${i}]`),
+        embs.map(e => e.embedding)
+      );
     }
     html += '</div>';
   }
@@ -562,13 +862,121 @@ function renderResults(data, input, latency) {
   </div></div>`;
 
   el.innerHTML = html;
-
-  // Store data for copy/download
   window._lastResult = data;
 }
 
-// --- Utils ---
+// ─── Render Compare Results ───
+function renderCompareResults(results, inputText) {
+  const el = document.getElementById('compareResults');
+  const successful = results.filter(r => !r.error);
+  const totalLatency = results.reduce((s, r) => s + (r.latency || 0), 0);
+
+  let html = `<div class="card">
+    <div class="result-header">
+      <h2>Comparison Results</h2>
+      <span class="latency">Total: ${totalLatency}ms</span>
+    </div>
+    <div class="stats">
+      <span class="stat">Models: <strong>${results.length}</strong></span>
+      <span class="stat">Success: <strong>${successful.length}/${results.length}</strong></span>
+      <span class="stat">Input: <strong>${escHtml(inputText.slice(0, 60))}${inputText.length > 60 ? '...' : ''}</strong></span>
+    </div>`;
+
+  // Per-model result cards
+  html += '<div class="compare-grid">';
+  for (const r of results) {
+    html += '<div class="compare-card">';
+    html += `<div class="compare-card-header">
+      <span class="compare-model-name" title="${escHtml(r.model)}">${escHtml(r.model)}</span>
+      <span class="compare-latency">${r.latency}ms</span>
+    </div>`;
+
+    if (r.error) {
+      html += `<div class="compare-error">\u26a0 ${escHtml(r.error)}</div>`;
+    } else {
+      const emb = r.data.data[0];
+      const dim = emb?.embedding?.length || 0;
+      const preview = emb.embedding.slice(0, 6).map(v => v.toFixed(4)).join(', ');
+      html += `<div class="compare-stats">
+        <span>Dims: <strong>${dim}</strong></span>
+        <span>Tokens: <strong>${r.data.usage?.prompt_tokens || 0}</strong></span>
+      </div>`;
+      html += `<div class="compare-vector">[${preview}, ...]</div>`;
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+
+  // Cross-model cosine similarity
+  if (successful.length >= 2) {
+    // Group by dimension (similarity only meaningful for same-dim vectors)
+    const dimGroups = {};
+    for (const r of successful) {
+      const dim = r.data.data[0]?.embedding?.length || 0;
+      if (!dimGroups[dim]) dimGroups[dim] = [];
+      dimGroups[dim].push(r);
+    }
+
+    html += `<div class="similarity-section">
+      <label style="margin-bottom:8px;display:block;">Cross-Model Cosine Similarity</label>`;
+
+    const multiDim = Object.keys(dimGroups).length > 1;
+
+    for (const [dim, group] of Object.entries(dimGroups)) {
+      if (group.length >= 2) {
+        if (multiDim) {
+          html += `<div style="font-size:0.78rem;color:var(--text-dim);margin:8px 0 4px;">${dim}d vectors (${group.length} models)</div>`;
+        }
+        const labels = group.map(r => shortName(r.model));
+        const vectors = group.map(r => r.data.data[0].embedding);
+        html += renderSimMatrix(labels, vectors);
+      }
+    }
+
+    // If all dimensions differ
+    const allSingle = Object.values(dimGroups).every(g => g.length < 2);
+    if (allSingle) {
+      html += `<div style="font-size:0.82rem;color:var(--text-dim);padding:8px 0;">
+        \u26a0 \ubaa8\ub4e0 \ubaa8\ub378\uc758 \ubca1\ud130 \ucc28\uc6d0\uc774 \ub2e4\ub974\ubbc0\ub85c \ucf54\uc0ac\uc778 \uc720\uc0ac\ub3c4\ub97c \uacc4\uc0b0\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.</div>`;
+    }
+
+    html += '</div>';
+  }
+
+  html += `<div class="download-actions">
+    <button class="btn-sm" onclick="copyCompareJson()">Copy JSON</button>
+    <button class="btn-sm" onclick="downloadCompareJson()">Download JSON</button>
+  </div></div>`;
+
+  el.innerHTML = html;
+  window._lastCompare = results;
+}
+
+// ─── Shared: Similarity Matrix ───
+function renderSimMatrix(labels, vectors) {
+  let html = '<table class="similarity-matrix"><tr><th></th>';
+  for (const l of labels) html += `<th title="${escHtml(l)}">${escHtml(l)}</th>`;
+  html += '</tr>';
+
+  for (let i = 0; i < vectors.length; i++) {
+    html += `<tr><th title="${escHtml(labels[i])}">${escHtml(labels[i])}</th>`;
+    for (let j = 0; j < vectors.length; j++) {
+      if (i === j) {
+        html += '<td>1.0000</td>';
+      } else {
+        const sim = cosine(vectors[i], vectors[j]);
+        html += `<td class="${simClass(sim)}">${sim.toFixed(4)}</td>`;
+      }
+    }
+    html += '</tr>';
+  }
+  html += '</table>';
+  return html;
+}
+
+// ─── Utils ───
 function cosine(a, b) {
+  if (a.length !== b.length) return 0;
   let dot = 0, na = 0, nb = 0;
   for (let i = 0; i < a.length; i++) {
     dot += a[i] * b[i];
@@ -585,8 +993,14 @@ function simClass(v) {
   return 'sim-low';
 }
 
+function shortName(model) {
+  // Abbreviate long model names for table headers
+  const name = model.split('/').pop();
+  return name.length > 22 ? name.slice(0, 20) + '..' : name;
+}
+
 function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function copyVector(idx) {
@@ -614,6 +1028,23 @@ function downloadJson() {
   URL.revokeObjectURL(a.href);
 }
 
+function copyCompareJson() {
+  if (window._lastCompare) {
+    navigator.clipboard.writeText(JSON.stringify(window._lastCompare, null, 2));
+    showToast('JSON copied!');
+  }
+}
+
+function downloadCompareJson() {
+  if (!window._lastCompare) return;
+  const blob = new Blob([JSON.stringify(window._lastCompare, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `embedding_compare_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function showToast(msg) {
   const t = document.createElement('div');
   t.textContent = msg;
@@ -628,11 +1059,18 @@ function showToast(msg) {
   setTimeout(() => t.remove(), 1500);
 }
 
-// Keyboard shortcut
+// Keyboard shortcuts
 document.getElementById('inputText').addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
     e.preventDefault();
     runEmbed();
+  }
+});
+
+document.getElementById('cmpInputText').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    runCompare();
   }
 });
 

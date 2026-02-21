@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import subprocess
+import traceback
 
 import httpx
 
@@ -56,25 +57,36 @@ class TEIBackend(EmbeddingBackend):
     def _docker_cmd(self, *args: str) -> list[str]:
         return ["wsl", "-d", self.wsl_distro, "--", "docker", *args]
 
-    async def _run_cmd(self, cmd: list[str], timeout: float = 30.0) -> int:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout
+    async def _run_cmd(
+        self, cmd: list[str], timeout: float = 30.0
+    ) -> tuple[int, str, str]:
+        """Run a command using subprocess.run in a thread (Windows-safe)."""
+        cmd_str = " ".join(cmd)
+        logger.debug(f"Running: {cmd_str}")
+
+        def _sync_run() -> subprocess.CompletedProcess:
+            return subprocess.run(
+                cmd, capture_output=True, timeout=timeout
             )
-            if proc.returncode != 0:
+
+        try:
+            result = await asyncio.to_thread(_sync_run)
+            stdout = result.stdout.decode(errors="replace")
+            stderr = result.stderr.decode(errors="replace")
+            if result.returncode != 0:
                 logger.warning(
-                    f"Command failed ({proc.returncode}): {' '.join(cmd)}\n"
-                    f"stderr: {stderr.decode(errors='replace')}"
+                    f"Command failed (rc={result.returncode}): {cmd_str}\n"
+                    f"stderr: {stderr}"
                 )
-            return proc.returncode or 0
-        except asyncio.TimeoutError:
-            proc.kill()
-            return -1
+            else:
+                logger.debug(f"Command OK (rc=0): {cmd_str}")
+            return result.returncode, stdout, stderr
+        except subprocess.TimeoutExpired:
+            logger.error(f"Command timed out ({timeout}s): {cmd_str}")
+            return -1, "", "timeout"
+        except Exception as e:
+            logger.error(f"Command exception: {cmd_str} → {e}")
+            return -2, "", str(e)
 
     async def _swap_model(self, model_id: str) -> None:
         """컨테이너를 교체하여 다른 모델 로딩."""
@@ -86,13 +98,15 @@ class TEIBackend(EmbeddingBackend):
             logger.info(f"Swapping TEI model: {self.current_model} → {model_id}")
 
             # 1. 기존 컨테이너 제거
-            await self._run_cmd(
+            rc, _, stderr = await self._run_cmd(
                 self._docker_cmd("rm", "-f", self.container_name),
                 timeout=15.0,
             )
+            if rc != 0:
+                logger.warning(f"Container remove returned rc={rc}: {stderr}")
 
             # 2. 새 컨테이너 시작
-            env_args = []
+            env_args: list[str] = []
             if self.hf_token:
                 env_args = ["-e", f"HUGGING_FACE_HUB_TOKEN={self.hf_token}"]
 
@@ -109,9 +123,14 @@ class TEIBackend(EmbeddingBackend):
                 "--max-batch-tokens", "16384",
                 "--max-concurrent-requests", "64",
             )
-            rc = await self._run_cmd(run_cmd, timeout=30.0)
+            rc, stdout, stderr = await self._run_cmd(run_cmd, timeout=30.0)
             if rc != 0:
-                raise RuntimeError(f"Failed to start TEI container for {model_id}")
+                raise RuntimeError(
+                    f"Failed to start TEI container for {model_id} "
+                    f"(rc={rc}): {stderr.strip()}"
+                )
+
+            logger.info(f"TEI container started, waiting for health...")
 
             # 3. health 대기
             await self._wait_healthy()
@@ -143,13 +162,23 @@ class TEIBackend(EmbeddingBackend):
         if model != self.current_model:
             if model not in self.available_models:
                 raise ValueError(f"Model '{model}' not in available TEI models")
+            logger.info(
+                f"TEI model switch: {self.current_model} → {model}"
+            )
             await self._swap_model(model)
 
-        response = await self.client.post(
-            "/v1/embeddings",
-            json={"input": texts, "model": model},
-        )
-        response.raise_for_status()
+        try:
+            response = await self.client.post(
+                "/v1/embeddings",
+                json={"input": texts, "model": model},
+            )
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            body = e.response.text[:500] if e.response else ""
+            raise RuntimeError(
+                f"TEI returned HTTP {e.response.status_code}: {body}"
+            ) from e
+
         data = response.json()
 
         embeddings_data = []

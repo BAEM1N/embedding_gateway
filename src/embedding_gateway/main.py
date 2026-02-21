@@ -24,18 +24,26 @@ async def lifespan(app: FastAPI):
     )
     reg.register_backend("ollama", ollama)
 
-    # TEI backend
+    # TEI backend (dynamic model swapping)
+    tei_models = settings.get_tei_model_list()
     tei = TEIBackend(
         base_url=settings.tei_base_url,
         default_model=settings.tei_default_model,
+        available_models=tei_models,
+        docker_image=settings.tei_docker_image,
+        container_name=settings.tei_container_name,
+        wsl_distro=settings.tei_wsl_distro,
+        swap_timeout=settings.tei_swap_timeout,
         timeout=settings.backend_timeout,
+        hf_token=settings.hf_token,
     )
+    await tei.initialize()
     reg.register_backend("tei", tei)
 
     # Pre-register known model mappings
     for m in ["bge-m3", "snowflake-arctic-embed2", "qwen3-embedding:0.6b"]:
         reg.register_model(m, ollama)
-    for m in [settings.tei_default_model]:
+    for m in tei_models:
         reg.register_model(m, tei)
 
     # Auto-discover additional models from running backends
@@ -55,7 +63,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Embedding Gateway",
     description="Unified OpenAI-compatible embedding API for Ollama and TEI backends",
-    version="0.1.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 

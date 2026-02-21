@@ -1,0 +1,13 @@
+# CPU 전용 오버라이드 (GPU 없이 TEI 실행)
+# 사용법: docker compose -f docker/docker-compose.yml -f docker/docker-compose.cpu.yml up -d
+services:
+  tei:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9
+    deploy:
+      resources:
+        reservations:
+          devices: []
+    command: >
+      --model-id intfloat/multilingual-e5-large-instruct
+      --max-batch-tokens 8192
+      --max-concurrent-requests 16

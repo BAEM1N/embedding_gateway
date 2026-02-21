@@ -1,0 +1,33 @@
+services:
+  tei:
+    image: ghcr.io/huggingface/text-embeddings-inference:89-1.9
+    container_name: tei-embeddings
+    ports:
+      - "8080:80"
+    volumes:
+      - tei-model-cache:/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
+    command: >
+      --model-id intfloat/multilingual-e5-large-instruct
+      --dtype float16
+      --max-batch-tokens 16384
+      --max-concurrent-requests 64
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+volumes:
+  tei-model-cache:
+    driver: local

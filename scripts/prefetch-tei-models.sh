@@ -27,7 +27,6 @@ MODELS=(
     "intfloat/multilingual-e5-base"
     "intfloat/multilingual-e5-large-instruct"
     "nlpai-lab/KURE-v1"
-    "jinaai/jina-embeddings-v5-text-small-retrieval"
 )
 
 # 특정 모델만 다운로드할 경우

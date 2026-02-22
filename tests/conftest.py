@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from embedding_gateway.backends.ollama import OllamaBackend
 from embedding_gateway.backends.tei import TEIBackend
+from embedding_gateway.backends.vllm import VLLMBackend
 from embedding_gateway.registry import ModelRegistry
 from embedding_gateway.health import health_router
 from embedding_gateway.router import router
@@ -16,17 +17,13 @@ from embedding_gateway import router as router_module
 
 
 TEI_MODELS = [
-    "BAAI/bge-m3",
-    "Qwen/Qwen3-Embedding-0.6B",
-    "Qwen/Qwen3-Embedding-4B",
-    "google/embeddinggemma-300m",
-    "nomic-ai/nomic-embed-text-v1.5",
-    "nomic-ai/nomic-embed-text-v2-moe",
-    "Snowflake/snowflake-arctic-embed-l-v2.0",
     "intfloat/multilingual-e5-base",
     "intfloat/multilingual-e5-large-instruct",
     "nlpai-lab/KURE-v1",
-    "jinaai/jina-embeddings-v5-text-small-retrieval",
+]
+
+VLLM_MODELS = [
+    "jinaai/jina-embeddings-v3",
 ]
 
 
@@ -48,12 +45,24 @@ async def client():
     tei.current_model = "intfloat/multilingual-e5-large-instruct"
     reg.register_backend("tei", tei)
 
+    vllm = VLLMBackend(
+        base_url="http://localhost:8081",
+        default_model="jinaai/jina-embeddings-v3",
+        available_models=VLLM_MODELS,
+        docker_image="vllm/vllm-openai:latest",
+        timeout=5.0,
+    )
+    vllm.current_model = "jinaai/jina-embeddings-v3"
+    reg.register_backend("vllm", vllm)
+
     for m in ["bge-m3", "bge-large", "snowflake-arctic-embed2",
               "qwen3-embedding:0.6b", "qwen3-embedding:4b", "qwen3-embedding:8b",
               "nomic-embed-text", "embeddinggemma", "mxbai-embed-large"]:
         reg.register_model(m, ollama)
     for m in TEI_MODELS:
         reg.register_model(m, tei)
+    for m in VLLM_MODELS:
+        reg.register_model(m, vllm)
 
     router_module.registry = reg
     health_module.registry = reg
@@ -76,5 +85,6 @@ async def client():
 
     await ollama.close()
     await tei.close()
+    await vllm.close()
     router_module.registry = None
     health_module.registry = None

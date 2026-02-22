@@ -24,9 +24,13 @@ data/
 # OS
 .DS_Store
 Thumbs.db
+NUL
 
 # Claude Code
 .claude/
 
 # pytest
 .pytest_cache/
+
+# Generated files
+scripts/benchmark_result.json

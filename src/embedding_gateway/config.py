@@ -23,6 +23,15 @@ class Settings(BaseSettings):
     tei_swap_timeout: float = 600.0
     tei_wsl_distro: str = "Ubuntu-24.04"
 
+    # vLLM dynamic model swapping (TEI가 지원하지 못하는 모델용)
+    vllm_base_url: str = "http://localhost:8081"
+    vllm_default_model: str = ""
+    vllm_models: str = ""  # 비어있으면 vLLM 비활성화
+    vllm_docker_image: str = "vllm/vllm-openai:latest"
+    vllm_container_name: str = "vllm-embeddings"
+    vllm_swap_timeout: float = 300.0
+    vllm_wsl_distro: str = "Ubuntu-24.04"
+
     # HuggingFace token (gated 모델 접근용)
     hf_token: str = ""
 
@@ -34,6 +43,9 @@ class Settings(BaseSettings):
 
     def get_tei_model_list(self) -> list[str]:
         return [m.strip() for m in self.tei_models.split(",") if m.strip()]
+
+    def get_vllm_model_list(self) -> list[str]:
+        return [m.strip() for m in self.vllm_models.split(",") if m.strip()]
 
 
 settings = Settings()

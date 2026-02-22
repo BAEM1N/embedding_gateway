@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from embedding_gateway.backends.ollama import OllamaBackend
 from embedding_gateway.backends.tei import TEIBackend
+from embedding_gateway.backends.vllm import VLLMBackend
 from embedding_gateway.config import settings
 from embedding_gateway.health import health_router
 from embedding_gateway.registry import ModelRegistry
@@ -43,6 +44,24 @@ async def lifespan(app: FastAPI):
     await tei.initialize()
     reg.register_backend("tei", tei)
 
+    # vLLM backend (TEI가 지원하지 못하는 모델용, opt-in)
+    vllm_models = settings.get_vllm_model_list()
+    vllm = None
+    if vllm_models:
+        vllm = VLLMBackend(
+            base_url=settings.vllm_base_url,
+            default_model=settings.vllm_default_model,
+            available_models=vllm_models,
+            docker_image=settings.vllm_docker_image,
+            container_name=settings.vllm_container_name,
+            wsl_distro=settings.vllm_wsl_distro,
+            swap_timeout=settings.vllm_swap_timeout,
+            timeout=settings.backend_timeout,
+            hf_token=settings.hf_token,
+        )
+        await vllm.initialize()
+        reg.register_backend("vllm", vllm)
+
     # Pre-register known Ollama embedding models
     ollama_models = [
         # Qwen3 Embedding (GGUF 양자화)
@@ -74,6 +93,11 @@ async def lifespan(app: FastAPI):
     for m in tei_models:
         reg.register_model(m, tei)
 
+    # vLLM models (e.g., Jina Embeddings v3)
+    if vllm_models and vllm:
+        for m in vllm_models:
+            reg.register_model(m, vllm)
+
     # Auto-discover additional models from running backends
     await reg.discover_models()
 
@@ -86,11 +110,13 @@ async def lifespan(app: FastAPI):
     # Cleanup
     await ollama.close()
     await tei.close()
+    if vllm:
+        await vllm.close()
 
 
 app = FastAPI(
     title="Embedding Gateway",
-    description="Unified OpenAI-compatible embedding API for Ollama and TEI backends",
+    description="Unified OpenAI-compatible embedding API for Ollama, TEI, and vLLM backends",
     version="0.3.0",
     lifespan=lifespan,
 )

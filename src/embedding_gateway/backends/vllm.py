@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import subprocess
-import traceback
 
 import httpx
 
@@ -11,16 +10,18 @@ from embedding_gateway.models import EmbeddingData, EmbeddingResponse, UsageInfo
 logger = logging.getLogger(__name__)
 
 
-class TEIBackend(EmbeddingBackend):
+class VLLMBackend(EmbeddingBackend):
+    """vLLM Docker 컨테이너 기반 임베딩 백엔드 (동적 모델 스와핑)."""
+
     def __init__(
         self,
         base_url: str,
         default_model: str,
         available_models: list[str],
         docker_image: str,
-        container_name: str = "tei-embeddings",
+        container_name: str = "vllm-embeddings",
         wsl_distro: str = "Ubuntu-24.04",
-        swap_timeout: float = 120.0,
+        swap_timeout: float = 300.0,
         timeout: float = 120.0,
         hf_token: str = "",
     ):
@@ -37,22 +38,24 @@ class TEIBackend(EmbeddingBackend):
         self._swap_lock = asyncio.Lock()
 
     async def _detect_current_model(self) -> str | None:
-        """TEI /info 엔드포인트에서 현재 로딩된 모델 확인."""
+        """vLLM /v1/models 엔드포인트에서 현재 로딩된 모델 확인."""
         try:
-            r = await self.client.get("/info", timeout=5.0)
+            r = await self.client.get("/v1/models", timeout=5.0)
             if r.status_code == 200:
-                return r.json().get("model_id")
+                data = r.json().get("data", [])
+                if data:
+                    return data[0]["id"]
         except Exception:
             pass
         return None
 
     async def initialize(self) -> None:
-        """시작 시 현재 TEI 컨테이너의 모델을 감지."""
+        """시작 시 현재 vLLM 컨테이너의 모델을 감지."""
         self.current_model = await self._detect_current_model()
         if self.current_model:
-            logger.info(f"TEI current model: {self.current_model}")
+            logger.info(f"vLLM current model: {self.current_model}")
         else:
-            logger.info("TEI container not running or not healthy")
+            logger.info("vLLM container not running or not healthy")
 
     def _docker_cmd(self, *args: str) -> list[str]:
         return ["wsl", "-d", self.wsl_distro, "--", "docker", *args]
@@ -85,17 +88,18 @@ class TEIBackend(EmbeddingBackend):
             logger.error(f"Command timed out ({timeout}s): {cmd_str}")
             return -1, "", "timeout"
         except Exception as e:
-            logger.error(f"Command exception: {cmd_str} → {e}")
+            logger.error(f"Command exception: {cmd_str} -> {e}")
             return -2, "", str(e)
 
     async def _swap_model(self, model_id: str) -> None:
         """컨테이너를 교체하여 다른 모델 로딩."""
         async with self._swap_lock:
-            # Lock 획득 후 다시 확인 (다른 요청이 이미 swap 했을 수 있음)
             if model_id == self.current_model:
                 return
 
-            logger.info(f"Swapping TEI model: {self.current_model} → {model_id}")
+            logger.info(
+                f"Swapping vLLM model: {self.current_model} -> {model_id}"
+            )
 
             # 1. 기존 컨테이너 제거
             rc, _, stderr = await self._run_cmd(
@@ -106,39 +110,43 @@ class TEIBackend(EmbeddingBackend):
                 logger.warning(f"Container remove returned rc={rc}: {stderr}")
 
             # 2. 새 컨테이너 시작
-            token_args: list[str] = []
+            env_args: list[str] = []
             if self.hf_token:
-                token_args = ["--hf-api-token", self.hf_token]
+                env_args = ["-e", f"HF_TOKEN={self.hf_token}"]
+
+            # base_url에서 포트 추출
+            port = self.base_url.rsplit(":", 1)[-1].split("/")[0]
 
             run_cmd = self._docker_cmd(
                 "run", "-d",
                 "--name", self.container_name,
                 "--gpus", "all",
-                "-p", "8080:80",
-                "-v", "tei-model-cache:/data",
+                "-p", f"{port}:8000",
+                "-v", "vllm-model-cache:/root/.cache/huggingface",
+                *env_args,
                 self.docker_image,
-                "--model-id", model_id,
+                model_id,
                 "--dtype", "float16",
-                "--max-batch-tokens", "16384",
-                "--max-concurrent-requests", "64",
-                *token_args,
+                "--max-model-len", "8192",
+                "--gpu-memory-utilization", "0.8",
+                "--trust-remote-code",
             )
             rc, stdout, stderr = await self._run_cmd(run_cmd, timeout=30.0)
             if rc != 0:
                 raise RuntimeError(
-                    f"Failed to start TEI container for {model_id} "
+                    f"Failed to start vLLM container for {model_id} "
                     f"(rc={rc}): {stderr.strip()}"
                 )
 
-            logger.info(f"TEI container started, waiting for health...")
+            logger.info("vLLM container started, waiting for health...")
 
             # 3. health 대기
             await self._wait_healthy()
             self.current_model = model_id
-            logger.info(f"TEI model swapped to: {model_id}")
+            logger.info(f"vLLM model swapped to: {model_id}")
 
     async def _wait_healthy(self) -> None:
-        """TEI가 healthy 될 때까지 대기."""
+        """vLLM이 healthy 될 때까지 대기."""
         deadline = asyncio.get_event_loop().time() + self.swap_timeout
         while asyncio.get_event_loop().time() < deadline:
             try:
@@ -147,9 +155,9 @@ class TEIBackend(EmbeddingBackend):
                     return
             except Exception:
                 pass
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(3.0)
         raise TimeoutError(
-            f"TEI did not become healthy within {self.swap_timeout}s"
+            f"vLLM did not become healthy within {self.swap_timeout}s"
         )
 
     async def embed(
@@ -163,14 +171,16 @@ class TEIBackend(EmbeddingBackend):
             detected = await self._detect_current_model()
             if detected:
                 self.current_model = detected
-                logger.info(f"TEI model detected (late): {detected}")
+                logger.info(f"vLLM model detected (late): {detected}")
 
         # 모델이 다르면 교체
         if model != self.current_model:
             if model not in self.available_models:
-                raise ValueError(f"Model '{model}' not in available TEI models")
+                raise ValueError(
+                    f"Model '{model}' not in available vLLM models"
+                )
             logger.info(
-                f"TEI model switch: {self.current_model} → {model}"
+                f"vLLM model switch: {self.current_model} -> {model}"
             )
             await self._swap_model(model)
 
@@ -183,7 +193,7 @@ class TEIBackend(EmbeddingBackend):
         except httpx.HTTPStatusError as e:
             body = e.response.text[:500] if e.response else ""
             raise RuntimeError(
-                f"TEI returned HTTP {e.response.status_code}: {body}"
+                f"vLLM returned HTTP {e.response.status_code}: {body}"
             ) from e
 
         data = response.json()
@@ -193,7 +203,9 @@ class TEIBackend(EmbeddingBackend):
             emb = d["embedding"]
             if dimensions:
                 emb = emb[:dimensions]
-            embeddings_data.append(EmbeddingData(embedding=emb, index=d["index"]))
+            embeddings_data.append(
+                EmbeddingData(embedding=emb, index=d["index"])
+            )
 
         return EmbeddingResponse(
             data=embeddings_data,

@@ -42,6 +42,10 @@ MODELS=(
     # IBM Granite
     "granite-embedding:30m"
     "granite-embedding:278m"
+
+    # Jina Embeddings v4 (GGUF Q8_0 via Ollama)
+    # v3은 vLLM(fp16), v5는 현재 Ollama/vLLM 미지원 (transformers 5.0 필요)
+    "hf.co/jinaai/jina-embeddings-v4-text-retrieval-GGUF:Q8_0"
 )
 
 echo "=== Ollama 임베딩 모델 다운로드 ==="

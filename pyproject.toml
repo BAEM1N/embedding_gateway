@@ -1,7 +1,7 @@
 [project]
 name = "embedding-gateway"
-version = "0.1.0"
-description = "Unified embedding API gateway for Ollama and TEI backends"
+version = "0.3.0"
+description = "Unified OpenAI-compatible embedding API gateway for Ollama, TEI, and vLLM backends"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

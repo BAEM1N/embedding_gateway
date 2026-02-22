@@ -85,6 +85,9 @@ async def lifespan(app: FastAPI):
         "paraphrase-multilingual",
         # IBM Granite
         "granite-embedding:278m",
+        # Jina Embeddings v4 (GGUF via Ollama)
+        # v3은 vLLM(fp16), v5는 현재 Ollama/vLLM 미지원 (transformers 5.0 필요)
+        "hf.co/jinaai/jina-embeddings-v4-text-retrieval-GGUF:Q8_0",
     ]
     for m in ollama_models:
         reg.register_model(m, ollama)

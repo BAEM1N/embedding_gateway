@@ -11,14 +11,18 @@ logger = logging.getLogger(__name__)
 
 
 class VLLMBackend(EmbeddingBackend):
-    """vLLM Docker 컨테이너 기반 임베딩 백엔드 (동적 모델 스와핑)."""
+    """vLLM 임베딩 백엔드.
+
+    managed 모드 (docker_image 설정): 로컬 Docker 컨테이너를 자동 관리 (시작/중지/모델 스왑).
+    unmanaged 모드 (docker_image 빈값): 원격 서버에 HTTP 프록시만 수행.
+    """
 
     def __init__(
         self,
         base_url: str,
         default_model: str,
         available_models: list[str],
-        docker_image: str,
+        docker_image: str = "",
         container_name: str = "vllm-embeddings",
         wsl_distro: str = "Ubuntu-24.04",
         swap_timeout: float = 300.0,
@@ -36,6 +40,11 @@ class VLLMBackend(EmbeddingBackend):
         self.client = httpx.AsyncClient(base_url=self.base_url, timeout=timeout)
         self.current_model: str | None = None
         self._swap_lock = asyncio.Lock()
+
+    @property
+    def managed(self) -> bool:
+        """True if this backend manages its own Docker container locally."""
+        return bool(self.docker_image)
 
     async def _detect_current_model(self) -> str | None:
         """vLLM /v1/models 엔드포인트에서 현재 로딩된 모델 확인."""
@@ -92,7 +101,13 @@ class VLLMBackend(EmbeddingBackend):
             return -2, "", str(e)
 
     async def _swap_model(self, model_id: str) -> None:
-        """컨테이너를 교체하여 다른 모델 로딩."""
+        """컨테이너를 교체하여 다른 모델 로딩 (managed 모드 전용)."""
+        if not self.managed:
+            raise RuntimeError(
+                f"Cannot swap model on remote vLLM backend. "
+                f"Current: {self.current_model}, requested: {model_id}. "
+                f"Set VLLM_DOCKER_IMAGE to enable local Docker management."
+            )
         async with self._swap_lock:
             if model_id == self.current_model:
                 return
@@ -173,8 +188,9 @@ class VLLMBackend(EmbeddingBackend):
                 self.current_model = detected
                 logger.info(f"vLLM model detected (late): {detected}")
 
-        # 모델이 다르면 교체
-        if model != self.current_model:
+        # managed 모드: 모델이 다르면 Docker 컨테이너 교체
+        # unmanaged(원격) 모드: 모델 체크 없이 원격 서버에 직접 요청
+        if self.managed and model != self.current_model:
             if model not in self.available_models:
                 raise ValueError(
                     f"Model '{model}' not in available vLLM models"
@@ -217,17 +233,20 @@ class VLLMBackend(EmbeddingBackend):
         )
 
     async def health_check(self) -> dict:
+        mode = "managed" if self.managed else "remote"
         try:
             r = await self.client.get("/health", timeout=5.0)
             return {
                 "status": "healthy" if r.status_code == 200 else "unhealthy",
                 "current_model": self.current_model,
+                "mode": mode,
             }
         except Exception as e:
             return {
                 "status": "unhealthy",
                 "error": str(e),
                 "current_model": self.current_model,
+                "mode": mode,
             }
 
     async def list_models(self) -> list[str]:
